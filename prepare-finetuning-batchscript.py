@@ -12,10 +12,11 @@ import uuid
 import pyprind
 import argparse
 
+
 parser = argparse.ArgumentParser(description='Prepare fine-tuning of multiscale alpha pooling. The working directory should contain train_val.prototxt of vgg16. The models will be created in the subfolders.')
 parser.add_argument('train_imagelist', type=str, help='Path to imagelist containing the training images. Each line should contain the path to an image followed by a space and the class ID.')
 parser.add_argument('val_imagelist', type=str, help='Path to imagelist containing the validation images. Each line should contain the path to an image followed by a space and the class ID.')
-parser.add_argument('--init_weights', type=str, help='Path to the pre-trained vgg16 model', default='../vgg16_imagenet.caffemodel')
+parser.add_argument('--init_weights', type=str, help='Path to the pre-trained vgg16 model', default='../../vgg16-training/vgg16_imagenet.caffemodel')
 parser.add_argument('--label', type=str, help='Label of the created output folder', default='nolabel')
 parser.add_argument('--gpu_id', type=int, help='ID of the GPU to use', default=0)
 parser.add_argument('--num_classes', type=int, help='Number of object categories', default=6000)
@@ -37,14 +38,13 @@ caffe.set_mode_gpu()
 # Create parameter files
 # Net
 netparams_in = caffe.proto.caffe_pb2.NetParameter()
-protofile = 'train_val.prototxt'
+protofile = 'vgg16-training/train_val.prototxt'
 google.protobuf.text_format.Merge(open(protofile).read(),netparams_in)
 
 # In[3]:
 
 # Change to working dir
-os.chdir('./vgg16-training/')
-working_dir = '%s_%s'%(args.label,str(uuid.uuid4()))
+working_dir = 'finetuning/%s_%s'%(args.label,str(uuid.uuid4()))
 try: os.makedirs(working_dir) 
 except: pass
 os.chdir(working_dir)
@@ -296,7 +296,7 @@ assert params.iter_size > 0
 open(solverfile,'w').write(google.protobuf.text_format.MessageToString(params))
 open(params.net,'w').write(google.protobuf.text_format.MessageToString(netparams))
 
-net_origin = caffe.Net('/home/simon/Data/caffe/vgg16/deploy.prototxt', args.init_weights, caffe.TEST)
+net_origin = caffe.Net('../../vgg16-training/train_val.prototxt', args.init_weights, caffe.TEST)
 net_target = caffe.Net('ft.prototxt',caffe.TEST)
 
 for origin_param in net_origin.params.keys():
