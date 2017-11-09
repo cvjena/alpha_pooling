@@ -47,6 +47,7 @@ The usage of the batch script is described in the --help message:
 
 The explanation for the usage of the notebook is described in the comments of it.
 Please note that we gamma in the scripts refer to alpha in the paper due to last minute renaming of the approach before submission.
+After the preparation, you can fine-tune the network using the created ft.solver file in the finetuning subfolder. 
 
 ## Accuracy 
 With VGG16 and a resolution of 224 and 560 pixels on the smaller side of the image, you should achieve the 85.3% top-1 accuracy reported in the paper. Complete list of results:
