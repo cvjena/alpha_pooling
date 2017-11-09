@@ -11,7 +11,7 @@ import google.protobuf.text_format
 import uuid
 import pyprind
 import argparse
-
+import random
 
 parser = argparse.ArgumentParser(description='Prepare fine-tuning of multiscale alpha pooling. The working directory should contain train_val.prototxt of vgg16. The models will be created in the subfolders.')
 parser.add_argument('train_imagelist', type=str, help='Path to imagelist containing the training images. Each line should contain the path to an image followed by a space and the class ID.')
