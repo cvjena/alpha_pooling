@@ -1,0 +1,3 @@
+[submodule "caffe_pp2"]
+	path = caffe_pp2
+	url = git@github.com:cvjena/caffe_pp2.git
