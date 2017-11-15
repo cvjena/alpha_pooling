@@ -1,8 +1,5 @@
 import sys
-
-sys.path.append('/home/simon/Research/lib/caffe/python')
 import caffe
-
 import h5py
 import numpy as np
 import os
@@ -13,24 +10,35 @@ import pyprind
 import argparse
 import random
 
+
 parser = argparse.ArgumentParser(description='Prepare fine-tuning of multiscale alpha pooling. The working directory should contain train_val.prototxt of vgg16. The models will be created in the subfolders.')
 parser.add_argument('train_imagelist', type=str, help='Path to imagelist containing the training images. Each line should contain the path to an image followed by a space and the class ID.')
 parser.add_argument('val_imagelist', type=str, help='Path to imagelist containing the validation images. Each line should contain the path to an image followed by a space and the class ID.')
-parser.add_argument('--init_weights', type=str, help='Path to the pre-trained vgg16 model', default='../../vgg16-training/vgg16_imagenet.caffemodel')
-parser.add_argument('--label', type=str, help='Label of the created output folder', default='nolabel')
+parser.add_argument('--init_weights', type=str, help='Path to the pre-trained vgg16 model', default='./pretrained_models/vgg16/vgg16_imagenet.caffemodel')
+parser.add_argument('--tag', type=str, help='Tag of the created output folder', default='nolabel')
 parser.add_argument('--gpu_id', type=int, help='ID of the GPU to use', default=0)
-parser.add_argument('--num_classes', type=int, help='Number of object categories', default=6000)
+parser.add_argument('--num_classes', type=int, help='Number of object categories', default=1000)
 parser.add_argument('--image_root', type=str, help='Image root folder, used to set the root_folder parameter of the ImageData layer of caffe.', default='/')
+parser.add_argument('--architecture', type=str, help='CNN architecture to use as basis. Should be a folder name present in the ./pretrained_models/ directory. Should contain a prepared train_val.prototxt.', default='vgg16')
+parser.add_argument('--chop_off_layer', type=str, help='Layer in the selected CNN architecture to compute the alpha pooling features from.', default='relu5_3')
+parser.add_argument('--train_batch_size', type=int, help='Batch size in training. Should be between 1 and 8, as we will use iter_size to achieve an effective batch size of 8. For network with batch norm, a batch size of 4 or greater is required to avoid divergence and 8 is recommended if you have enough GPU memory.', default=8)
+parser.add_argument('--resolutions', nargs='+', type=int, default=[224,560], help='The input size of the different multi-scale branches.')
+parser.add_argument('--crop_size', type=int, default=None, help='The crop size of the augmented input image. Should be at least as high as the maximum of --resolutions' )
+parser.add_argument('--augmentation_resize', nargs=2, type=int, default=[560,640], help='Images are randomly resized before cropping to the minimal and maximal length of the smaller side. You can provide the minimal and maximal length here. Should be larger than --crop_size.')
 args = parser.parse_args()
 
 # Some other parameters, usually you don't need to change this
 initial_alpha = 2.0
-chop_off_layer = 'relu5_3'
-resize_size = 560
-crop_size = 560
-resolutions = [224,560]
+chop_off_layer = args.chop_off_layer
+resize_size = args.augmentation_resize
+if args.crop_size is None:
+    crop_size = resize_size[0]
+else:
+    crop_size = args.crop_size
+resolutions = args.resolutions
 prefix_template = 'res%i/'
 num_classes = args.num_classes
+init_weights = os.path.abspath(args.init_weights)
 
 caffe.set_device(args.gpu_id)
 caffe.set_mode_gpu()
@@ -38,38 +46,43 @@ caffe.set_mode_gpu()
 # Create parameter files
 # Net
 netparams_in = caffe.proto.caffe_pb2.NetParameter()
-protofile = 'vgg16-training/train_val.prototxt'
+protofile = os.getcwd() + '/pretrained_models/' + args.architecture +'/train_val.prototxt'
 google.protobuf.text_format.Merge(open(protofile).read(),netparams_in)
 
 # In[3]:
 
 # Change to working dir
-working_dir = 'finetuning/%s_%s'%(args.label,str(uuid.uuid4()))
+working_dir = 'finetuning/%s_%s_%s'%(args.architecture, args.tag, str(uuid.uuid4()))
 try: os.makedirs(working_dir) 
 except: pass
 os.chdir(working_dir)
 
+assert(args.chop_off_layer in [l.name for l in netparams_in.layer]), 'Chop off layer not found. I can only find the layers {}'.format([l.name for l in netparams_in.layer])
 
 # Prepare data layer
 lyr = netparams_in.layer
-#lyr[0].image_data_param.source = '/home/simon/Research/generic/results/2016-07-01_dataset_filter/train_only_animals_vehicles.txt'
 lyr[0].image_data_param.source = args.train_imagelist
 lyr[0].image_data_param.root_folder = args.image_root
-lyr[0].image_data_param.batch_size = 1
-lyr[0].image_data_param.smaller_side_size[0] = resize_size
-#lyr[0].image_data_param.smaller_side_size[1] = crop_size
-lyr[0].transform_param.crop_size = crop_size
+lyr[0].image_data_param.batch_size = args.train_batch_size
+[lyr[0].image_data_param.smaller_side_size.append(0) for _ in range(2-len(lyr[0].image_data_param.smaller_side_size))]
 lyr[0].type = 'ImageData'
 
-#lyr[1].image_data_param.source = '/home/simon/Research/generic/results/2016-07-01_dataset_filter/val_only_animals_vehicles.txt'
 lyr[1].image_data_param.source = args.val_imagelist
 lyr[1].image_data_param.root_folder = args.image_root
 lyr[1].image_data_param.batch_size = 1
-lyr[1].image_data_param.smaller_side_size[0] = resize_size
-#lyr[1].image_data_param.smaller_side_size[1] = crop_size
-lyr[1].transform_param.crop_size = crop_size
 lyr[1].type = 'ImageData'
 
+# Write out init prototxt with correct paths for copying
+open('original.prototxt','w').write(google.protobuf.text_format.MessageToString(netparams_in))
+
+lyr[0].transform_param.crop_size = crop_size
+lyr[0].image_data_param.smaller_side_size[0] = resize_size[0]
+lyr[0].image_data_param.smaller_side_size[1] = resize_size[1]
+
+lyr[1].transform_param.crop_size = crop_size
+[lyr[1].image_data_param.smaller_side_size.append(0) for _ in range(2-len(lyr[1].image_data_param.smaller_side_size))]
+lyr[1].image_data_param.smaller_side_size[0] = crop_size
+lyr[1].image_data_param.smaller_side_size[1] = crop_size
 
 # Add batch norm
 netparams = caffe.proto.caffe_pb2.NetParameter()
@@ -232,49 +245,20 @@ netparams.layer[-1].top.append(netparams.layer[-1].name)
 netparams.layer[-1].include.add()
 netparams.layer[-1].include[0].phase = 1
 
-
-# Learning rates and decays and so on
 for l in netparams.layer:
-    if l.type in ['InnerProduct','Convolution','Scale']:
-        [l.param.add() for _ in range(2 - len(l.param))]
-        l.param[0].lr_mult = 1
-        l.param[0].decay_mult = 1
-        l.param[1].lr_mult = 2
-        l.param[1].decay_mult = 2
-    if l.type in ['InnerProduct']:
-        l.inner_product_param.weight_filler.type = "gaussian"
-        l.inner_product_param.weight_filler.ClearField('std')
-        l.inner_product_param.weight_filler.std = 0.01
-        l.inner_product_param.bias_filler.type = "constant"
-        l.inner_product_param.bias_filler.value = 0.0
-    if l.name in ['fc8_ft']:
-        l.inner_product_param.weight_filler.type = "gaussian"
-        l.inner_product_param.weight_filler.std = 0.000000001
-        l.inner_product_param.bias_filler.type = "constant"
-        l.inner_product_param.bias_filler.value = 0.01
-    if l.type in ['Convolution']:
-        l.convolution_param.weight_filler.type = "gaussian"
-        l.convolution_param.weight_filler.ClearField('std')
-        l.inner_product_param.weight_filler.std = 0.01
-        l.convolution_param.bias_filler.type = "constant"
-        l.convolution_param.bias_filler.value = 0.0
-    if l.type == "BatchNorm":
-        l.param[0].lr_mult = 0
-        l.param[1].lr_mult = 0
-        l.param[2].lr_mult = 0
-        l.batch_norm_param.ClearField('use_global_stats')
-#    if l.name in ['fc6','fc7']:
-#        l.inner_product_param.num_output = 2048
-
+    if l.type == 'BatchNorm':
+        #l.batch_norm_param.use_global_mean_in_training = False
+        l.batch_norm_param.moving_average_fraction = 0.997
 
 num_images = [len([None for _ in open(netparams.layer[i].image_data_param.source,'r')]) for i in [0,1]]
 iter_per_epoch = int(num_images[0]/32) 
+assert iter_per_epoch>0
 
 # Solver
 solverfile = 'ft.solver'
 params = caffe.proto.caffe_pb2.SolverParameter()
 params.net = u'ft.prototxt'
-params.test_iter.append(int(len([None for _ in open(netparams.layer[1].image_data_param.source,'rt')]) / lyr[0].image_data_param.batch_size))
+params.test_iter.append(int(len([None for _ in open(netparams.layer[1].image_data_param.source,'rt')]) / lyr[1].image_data_param.batch_size))
 params.test_interval = 10000
 params.test_initialization = True
 params.base_lr = 0.001
@@ -296,7 +280,7 @@ assert params.iter_size > 0
 open(solverfile,'w').write(google.protobuf.text_format.MessageToString(params))
 open(params.net,'w').write(google.protobuf.text_format.MessageToString(netparams))
 
-net_origin = caffe.Net('../../vgg16-training/train_val.prototxt', args.init_weights, caffe.TEST)
+net_origin = caffe.Net('original.prototxt', init_weights, caffe.TEST)
 net_target = caffe.Net('ft.prototxt',caffe.TEST)
 
 for origin_param in net_origin.params.keys():

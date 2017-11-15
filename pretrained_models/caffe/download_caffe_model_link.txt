@@ -1,0 +1,1 @@
+Please see the model in the official repo https://github.com/BVLC/caffe/tree/master/models/bvlc_reference_caffenet

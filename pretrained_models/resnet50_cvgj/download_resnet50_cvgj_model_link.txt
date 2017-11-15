@@ -1,0 +1,2 @@
+ResNet 50 model used in the paper were taken from https://github.com/cvjena/cnn-models/tree/master/ResNet_preact/ResNet50_cvgj
+Please refer to the download link there

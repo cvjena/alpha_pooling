@@ -99,3 +99,7 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# caffe models
+*.caffemodel
+caffe_reference_imagenet_model
