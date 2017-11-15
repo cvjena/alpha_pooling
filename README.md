@@ -77,6 +77,8 @@ Previous| 81.0% [24]| 72.5% [6]| 72.0% [36]|
 |Special case: bilinear [19] |84.1%| 84.1% |-|
 |Learned strategy (Ours)| 85.3% |85.5% |86.0%|
 
+Note: running the training longer the the predefined number of itertions leads to a higher accuracy and is necessary to reproduce the paper results. 
+
 ## Citation
 Please cite the corresponding ICCV 2017 publication if our models helped your research:
 
