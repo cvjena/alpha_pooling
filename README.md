@@ -1,6 +1,4 @@
 # Alpha pooling for fine-grained recognition
-
-## Intro
 This repository contains code for our International Conference on Computer Vision publication ``[Generalized Orderless Pooling Performs Implicit Salient Matching](http://openaccess.thecvf.com/content_iccv_2017/html/Simon_Generalized_Orderless_Pooling_ICCV_2017_paper.html)''. It contains scripts for fine-tuning a pre-trained VGG16 model with our presented alpha-pooling approach.
 
 ## Abstract of the paper
